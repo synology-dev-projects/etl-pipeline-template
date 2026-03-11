@@ -46,6 +46,7 @@ jobs:
           
           echo "📂 Target Path: $TARGET_PATH"
           echo "DEPLOY_DIR=$TARGET_PATH" >> $GITHUB_ENV
+          
 
       # 4. DEPLOY CODE (Copy files BEFORE installing deps)
       - name: Sync Code to Project Root
@@ -61,14 +62,12 @@ jobs:
  
           # Copy NEW files to the persistent project root
           echo "🚀 Copying new files..."
-          cp -r common_lib "$TARGET_PATH/"
+          cp -r src "$TARGET_PATH/"
           cp -r tests "$TARGET_PATH/"
           cp verify.sh "$TARGET_PATH/"
-          cp pyproject.toml "$TARGET_PATH/"
           
           sudo chown -R 1026:100 "$TARGET_PATH"
           chmod -R 775 "$TARGET_PATH"
-          
           
           # Copy requirement files if they exist
           [ -f requirements.txt ] && cp requirements.txt "$TARGET_PATH/"
@@ -102,25 +101,15 @@ jobs:
           echo "📦 Installing dependencies..."
           pip install -r requirements.txt
           
+          #Inject the local shared library
+          # The '-e' flag ensures changes are live instantly
+          echo "Installing local common-lib..."
+          pip install -e ../common-lib
+          
           # 4. Add to Path (so verify.sh finds it)
           echo "$PWD/.venv/bin" >> $GITHUB_PATH
 
-      # 6. SECRET INJECTION
-      - name: Create Runtime .env File
-        run: |
-          ENV_FILE="${{ env.DEPLOY_DIR }}/.env"
-          echo "Generating secure .env file at $ENV_FILE..."
-          
-          echo "ORACLE_USER=${{ secrets.ORACLE_USER }}" > "$ENV_FILE"
-          echo "ORACLE_PASS=${{ secrets.ORACLE_PASS }}" >> "$ENV_FILE"
-          echo "ORACLE_HOST_IP=${{ secrets.ORACLE_HOST_IP }}" >> "$ENV_FILE"
-          echo "ORACLE_SERVICE=${{ secrets.ORACLE_SERVICE }}" >> "$ENV_FILE"
-          echo "TE_COOKIE=${{ secrets.TE_COOKIE }}" >> "$ENV_FILE"
-          echo "NTFY_ENDPOINT=${{ secrets.NTFY_ENDPOINT }}" >> "$ENV_FILE"
-          
-          chmod 644 "$ENV_FILE"
-
-      # 7. VERIFICATION
+      # 6. VERIFICATION
       - name: Run Verification
         run: |
           echo "🧪 Testing branch: ${{ github.ref_name }}"
@@ -132,7 +121,7 @@ jobs:
           chmod +x verify.sh
           ./verify.sh
 
-      # 8. MERGE LOGIC (Unchanged)
+      # 7. MERGE LOGIC (Unchanged)
       - name: Auto-Promote to Master
         if: github.ref_name == 'develop'
         run: |
